@@ -1,0 +1,18 @@
+# Compiled output
+out/
+*.class
+
+# Build artifacts
+sources.txt
+javac
+
+# VS Code
+.vscode/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
