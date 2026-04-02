@@ -1,0 +1,36 @@
+/* Naval dark theme for Battleship */
+
+.root {
+    -fx-background-color: #060f1e;
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+}
+
+.label {
+    -fx-text-fill: #a0c8e0;
+}
+
+.button {
+    -fx-background-color: #1a6496;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+    -fx-padding: 8 20;
+}
+
+.button:hover {
+    -fx-background-color: #2a8acc;
+}
+
+.button:pressed {
+    -fx-background-color: #0f4a7a;
+}
+
+.scroll-pane {
+    -fx-background: #060f1e;
+    -fx-background-color: #060f1e;
+}
+
+.scroll-pane .viewport {
+    -fx-background-color: #060f1e;
+}
