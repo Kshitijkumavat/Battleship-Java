@@ -5,11 +5,11 @@ import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Line;
-import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
@@ -36,7 +36,13 @@ public class GameScreen {
     private final Label aiShipsLabel;
     private final Label turnLabel;
 
+    // Footer buttons — shown/hidden based on game state
+    private final HBox footerButtons;
+    private final Button restartBtn;
+    private final Button playAgainBtn;
+
     private boolean playerTurn = true;
+    private boolean gameOver = false;
 
     public GameScreen(Stage stage, Grid playerGrid) {
         this.stage = stage;
@@ -52,6 +58,16 @@ public class GameScreen {
         this.playerShipsLabel = new Label("4");
         this.aiShipsLabel = new Label("4");
         this.turnLabel = new Label("YOUR TURN");
+
+        this.restartBtn = buildButton("NEW GAME  ↺", "#1a4a6a", "#2a6a9a");
+        this.playAgainBtn = buildButton("PLAY AGAIN  ▶", "#cc5500", "#ff7700");
+        this.footerButtons = new HBox(12, restartBtn, playAgainBtn);
+        this.footerButtons.setAlignment(Pos.CENTER_RIGHT);
+        this.footerButtons.setVisible(false); // hidden until game ends
+
+        restartBtn.setOnAction(e -> goToPlacement());
+        playAgainBtn.setOnAction(e -> playAgain());
+
         root = new BorderPane();
         root.setStyle("-fx-background-color: #060f1e;");
         buildUI();
@@ -80,11 +96,10 @@ public class GameScreen {
         header.setPadding(new Insets(0, 0, 10, 0));
         root.setTop(header);
 
-        // ── Stats bar (left) ──────────────────────────────────────────────────
+        // ── Boards ────────────────────────────────────────────────────────────
         VBox playerStats = buildStatsPanel("YOU", playerHitsLabel, playerShipsLabel, "#5bc0de", "#003a5a");
         VBox aiStats = buildStatsPanel("AI", aiHitsLabel, aiShipsLabel, "#e05050", "#3a0a0a");
 
-        // ── Grid panels ───────────────────────────────────────────────────────
         Label yourLabel = makeGridLabel("YOUR WATERS", "#4a8fa8");
         Label enemyLabel = makeGridLabel("ENEMY WATERS", "#a84a4a");
 
@@ -96,7 +111,6 @@ public class GameScreen {
         rightPanel.setAlignment(Pos.CENTER);
         rightPanel.setPadding(new Insets(0, 50, 0, 20));
 
-        // Vertical divider
         VBox dividerBox = new VBox();
         dividerBox.setPrefWidth(1);
         dividerBox.setStyle("-fx-background-color: #1a3a5c;");
@@ -112,55 +126,20 @@ public class GameScreen {
         statusLabel.setFont(Font.font("Segoe UI", 14));
         statusLabel.setTextFill(Color.web("#4a8fa8"));
 
-        HBox footer = new HBox(statusLabel);
-        footer.setAlignment(Pos.CENTER);
-        footer.setPadding(new Insets(14, 0, 24, 0));
+        HBox footerLeft = new HBox(statusLabel);
+        footerLeft.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(footerLeft, Priority.ALWAYS);
+
+        HBox footer = new HBox(20, footerLeft, footerButtons);
+        footer.setAlignment(Pos.CENTER_LEFT);
+        footer.setPadding(new Insets(14, 40, 24, 50));
         footer.setStyle("-fx-background-color: #08162a; -fx-border-color: #1a3a5c; -fx-border-width: 1 0 0 0;");
         root.setBottom(footer);
     }
 
-    private VBox buildStatsPanel(String who, Label hitsLabel, Label shipsLabel, String color, String bg) {
-        hitsLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 24));
-        hitsLabel.setTextFill(Color.web(color));
-
-        shipsLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 24));
-        shipsLabel.setTextFill(Color.web(color));
-
-        Label hTitle = new Label("HITS");
-        hTitle.setFont(Font.font("Segoe UI", 10));
-        hTitle.setTextFill(Color.web("#3a6a8a"));
-
-        Label sTitle = new Label("SHIPS LEFT");
-        sTitle.setFont(Font.font("Segoe UI", 10));
-        sTitle.setTextFill(Color.web("#3a6a8a"));
-
-        VBox hBox = new VBox(2, hitsLabel, hTitle);
-        hBox.setAlignment(Pos.CENTER);
-
-        VBox sBox = new VBox(2, shipsLabel, sTitle);
-        sBox.setAlignment(Pos.CENTER);
-
-        HBox stats = new HBox(24, hBox, sBox);
-        stats.setAlignment(Pos.CENTER);
-        stats.setPadding(new Insets(8, 16, 8, 16));
-        stats.setStyle("-fx-background-color: " + bg + "; -fx-background-radius: 8; " +
-                       "-fx-border-color: " + color + "44; -fx-border-width: 1; -fx-border-radius: 8;");
-
-        VBox panel = new VBox(stats);
-        panel.setAlignment(Pos.CENTER);
-        return panel;
-    }
-
-    private Label makeGridLabel(String text, String color) {
-        Label lbl = new Label(text);
-        lbl.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
-        lbl.setTextFill(Color.web(color));
-        return lbl;
-    }
-
     private void setupAttackHandler() {
         aiBoard.setClickHandler((row, col) -> {
-            if (!playerTurn) return;
+            if (!playerTurn || gameOver) return;
             if (aiPlayer.getMyGrid().isAlreadyAttacked(row, col)) {
                 flash("Already attacked that position!", "#cc7700");
                 return;
@@ -185,6 +164,7 @@ public class GameScreen {
     }
 
     private void aiTurn() {
+        if (gameOver) return;
         int[] attack = aiStrategy.chooseAttack(playerGrid);
         boolean hit = playerGrid.receiveAttack(attack[0], attack[1]);
         aiStrategy.registerResult(attack[0], attack[1], hit, playerGrid);
@@ -201,6 +181,51 @@ public class GameScreen {
         playerTurn = true;
         setTurnIndicator(true);
     }
+
+    private void endGame(boolean playerWon) {
+        gameOver = true;
+        playerTurn = false;
+        aiBoard.setClickHandler(null);
+
+        // Reveal all AI ships
+        aiBoard.refreshAll();
+
+        if (playerWon) {
+            turnLabel.setText("VICTORY!");
+            turnLabel.setTextFill(Color.web("#00cc66"));
+            turnLabel.setStyle("-fx-background-color: #002a14; -fx-background-radius: 4; -fx-padding: 4 12;");
+            flash("VICTORY! You sunk the entire enemy fleet!", "#00cc66");
+        } else {
+            turnLabel.setText("DEFEATED");
+            turnLabel.setTextFill(Color.web("#e05050"));
+            turnLabel.setStyle("-fx-background-color: #2a0a0a; -fx-background-radius: 4; -fx-padding: 4 12;");
+            flash("GAME OVER — The AI destroyed your fleet!", "#e05050");
+        }
+
+        // Show the restart / play again buttons with a fade in
+        footerButtons.setVisible(true);
+        footerButtons.setOpacity(0);
+        FadeTransition ft = new FadeTransition(Duration.millis(600), footerButtons);
+        ft.setFromValue(0);
+        ft.setToValue(1);
+        ft.play();
+    }
+
+    // ── Navigation ────────────────────────────────────────────────────────────
+
+    /** Go back to placement screen — full reset */
+    private void goToPlacement() {
+        PlacementScreen placement = new PlacementScreen(stage);
+        stage.getScene().setRoot(placement.getRoot());
+    }
+
+    /** Instantly rematch — keep same player grid, regenerate AI */
+    private void playAgain() {
+        GameScreen newGame = new GameScreen(stage, playerGrid);
+        stage.getScene().setRoot(newGame.getRoot());
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void setTurnIndicator(boolean isPlayer) {
         if (isPlayer) {
@@ -257,21 +282,46 @@ public class GameScreen {
         return count;
     }
 
-    private void endGame(boolean playerWon) {
-        playerTurn = false;
-        aiBoard.setClickHandler(null);
-        if (playerWon) {
-            aiBoard.refreshAll();
-            turnLabel.setText("VICTORY");
-            turnLabel.setTextFill(Color.web("#00cc66"));
-            turnLabel.setStyle("-fx-background-color: #002a14; -fx-background-radius: 4; -fx-padding: 4 12;");
-            flash("VICTORY! You sunk the entire enemy fleet!", "#00cc66");
-        } else {
-            turnLabel.setText("DEFEATED");
-            turnLabel.setTextFill(Color.web("#e05050"));
-            turnLabel.setStyle("-fx-background-color: #2a0a0a; -fx-background-radius: 4; -fx-padding: 4 12;");
-            flash("GAME OVER — The AI destroyed your fleet!", "#e05050");
-        }
+    private VBox buildStatsPanel(String who, Label hitsLabel, Label shipsLabel, String color, String bg) {
+        hitsLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 24));
+        hitsLabel.setTextFill(Color.web(color));
+        shipsLabel.setFont(Font.font("Segoe UI", FontWeight.BOLD, 24));
+        shipsLabel.setTextFill(Color.web(color));
+        Label hTitle = new Label("HITS");
+        hTitle.setFont(Font.font("Segoe UI", 10));
+        hTitle.setTextFill(Color.web("#3a6a8a"));
+        Label sTitle = new Label("SHIPS LEFT");
+        sTitle.setFont(Font.font("Segoe UI", 10));
+        sTitle.setTextFill(Color.web("#3a6a8a"));
+        VBox hBox = new VBox(2, hitsLabel, hTitle);
+        hBox.setAlignment(Pos.CENTER);
+        VBox sBox = new VBox(2, shipsLabel, sTitle);
+        sBox.setAlignment(Pos.CENTER);
+        HBox stats = new HBox(24, hBox, sBox);
+        stats.setAlignment(Pos.CENTER);
+        stats.setPadding(new Insets(8, 16, 8, 16));
+        stats.setStyle("-fx-background-color: " + bg + "; -fx-background-radius: 8; " +
+                       "-fx-border-color: " + color + "44; -fx-border-width: 1; -fx-border-radius: 8;");
+        VBox panel = new VBox(stats);
+        panel.setAlignment(Pos.CENTER);
+        return panel;
+    }
+
+    private Label makeGridLabel(String text, String color) {
+        Label lbl = new Label(text);
+        lbl.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+        lbl.setTextFill(Color.web(color));
+        return lbl;
+    }
+
+    private Button buildButton(String text, String normalColor, String hoverColor) {
+        Button btn = new Button(text);
+        String base = "-fx-font-family: 'Segoe UI'; -fx-font-weight: bold; -fx-font-size: 13px; " +
+                      "-fx-text-fill: white; -fx-padding: 10 24; -fx-background-radius: 6; -fx-cursor: hand; ";
+        btn.setStyle(base + "-fx-background-color: " + normalColor + ";");
+        btn.setOnMouseEntered(e -> btn.setStyle(base + "-fx-background-color: " + hoverColor + ";"));
+        btn.setOnMouseExited(e -> btn.setStyle(base + "-fx-background-color: " + normalColor + ";"));
+        return btn;
     }
 
     public BorderPane getRoot() { return root; }
